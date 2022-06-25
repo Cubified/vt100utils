@@ -16,12 +16,16 @@ Text truncation with animation ([hover.c](https://github.com/Cubified/vt100utils
 
 ![hover.gif](https://github.com/Cubified/vt100utils/blob/main/gifs/hover.gif)
 
+Per-word interactivity ([words.c](https://github.com/Cubified/vt100utils/blob/main/demos/words.c)):
+
+![words.gif](https://github.com/Cubified/vt100utils/blob/main/gifs/words.gif)
+
 ## Features
 
 - Decoder capable of parsing any arbitrary string and producing a list of text nodes
 - Encoder capable of producing a terminal-compatible string from a list of text nodes
 - Supports 8-color and 256-color palettes, as well as truecolor (16 million color) foreground and background
-- Supports special formatting such as bold, underline, and blinking text
+- Supports special formatting such as bold, underline, italic, and blinking text
 - Fault-tolerant: Ignores unrecognized escape sequences (instead of aborting)
 
 ## Basic Usage
@@ -71,7 +75,7 @@ Text: Hello world!
 Text: Goodbye.
   Foreground: 2
   Background: 5
-  Mode: 4
+  Mode: 8
 ```
 
 ## The `vt100_node_t` and `vt100_color_t` Structs
@@ -105,8 +109,8 @@ When `vt100_decode` is called, a linked list consisting of `vt100_node_t` struct
 - The text's foreground and background colors as `vt100_color_t` structs:
    - The type:  8-color palette, 8-color bright palette, 256-color palette, or truecolor
    - The value:  For palette-based color schemes, the index within the palette (e.g. 0 for color #30 in the 8-color standard palette).  For truecolor, an RGB-encoded `uint32_t`.
-- The text's special formatting (its "mode"):
-   - To check for bold, underline, blink, etc., this `uint8_t` can be AND'ed with `HAS_BOLD`, `HAS_UNDERLINE`, `HAS_BLINK`, etc.
+- The text's special formatting (its "mode"): Each bit represents one formatting type (e.g. bold, underline, italic, etc.).
+   - To check for any single formatting type, AND this value with `1 << (i - 1)` where `i` is the ANSI code for enabling it (e.g. 1 for bold, 3 for italic, etc.)
 - The pointer to the next text node in the chain
 
 As is standard for ANSI escape sequences, nodes inherit the formatting of prior nodes unless overwritten.
@@ -116,3 +120,4 @@ Along with this, calling `vt100_encode` does not produce an identical string to 
 ## See Also
 
 - [reflow](https://github.com/muesli/reflow):  An ANSI-sequence aware text reflow library written in Go
+- [ANSI escape code reference](https://gist.github.com/fnky/458719343aabd01cfb17a3a4f7296797)

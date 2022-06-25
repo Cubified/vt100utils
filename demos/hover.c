@@ -18,7 +18,6 @@ draw(ui_box_t *b, char *out)
   char *sgr;
   int len = 0;
   int full_len = 0;
-  int did_dots = 0;
 
   while (tmp != NULL) {
     sgr = vt100_sgr(tmp);

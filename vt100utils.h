@@ -17,10 +17,6 @@
  */
 #define MAX(a, b) (a > b ? a : b)
 
-#define HAS_BOLD      0x1
-#define HAS_UNDERLINE 0x4
-#define HAS_BLINK     0x8
-
 /**
  * STRUCTS and GLOBALS
  */
@@ -67,6 +63,7 @@ vt100_sgr(struct vt100_node_t *node)
 {
   char *buf = malloc(128);
   int len = sprintf(buf, "\x1b[");
+  int i;
 
   switch (node->fg.type) {
     case palette_8:
@@ -134,20 +131,15 @@ vt100_sgr(struct vt100_node_t *node)
       break;
   }
 
-  if (node->mode & HAS_BOLD)
-    len += sprintf(buf + len, ";1");
-  else
-    len += sprintf(buf + len, ";21");
-
-  if (node->mode & HAS_UNDERLINE)
-    len += sprintf(buf + len, ";4");
-  else
-    len += sprintf(buf + len, ";24");
-
-  if (node->mode & HAS_BLINK)
-    len += sprintf(buf + len, ";5");
-  else
-    len += sprintf(buf + len, ";25");
+  for (i = 0; i < 8; i++) {
+    len += sprintf(
+      buf + len,
+      ";%i",
+      i + 1
+        + (20 * ((node->mode & (1 << i)) == 0))   /* Disable format */
+        + (1 * (i == 0 && (node->mode & 1) == 0)) /* \x1b[21m is nonstandard */
+    );
+  }
 
   sprintf(buf + len, "m");
 
@@ -163,7 +155,6 @@ char *
 vt100_encode(struct vt100_node_t *node)
 {
   int len = 0;
-  int full_len = 0;
   int size;
   char *out = malloc((size = MAX(node->len, 32)));
   char *buf;
@@ -171,14 +162,14 @@ vt100_encode(struct vt100_node_t *node)
   struct vt100_node_t *tmp = node;
 
   while (tmp != NULL) {
-    while (full_len + tmp->len + 30 > size) {
+    while (len + tmp->len + 30 > size) {
       out = realloc(out, (size *= 2));
     }
 
     buf = vt100_sgr(tmp);
 
-    full_len += sprintf(
-      out + full_len,
+    len += sprintf(
+      out + len,
       "%s%s",
       buf,
       tmp->str
@@ -201,11 +192,9 @@ vt100_parse(struct vt100_node_t *node, char *str)
 {
   char *start = str + 2;
   char *end = start;
-  char cpy[16];
   int args[256];
   int i = 0;
-  int *to_modify1, *to_modify2;
-  uint32_t tmp = 0;
+  struct vt100_color_t *to_modify;
 
   int j, state = 0;
 
@@ -224,12 +213,17 @@ vt100_parse(struct vt100_node_t *node, char *str)
         switch (state) {
         case 0:
           switch (args[j]) {
+          /* Reset */
           case 0:
             node->fg = default_fg;
             node->bg = default_bg;
             node->mode = 0;
             break;
-          /* GCC/Clang extension */
+          /* Formatting (bold, dim, italic, etc.) */
+          case 1 ... 9: /* GCC case range extension (supported by Clang) */
+            node->mode |= (1 << (args[j] - 1));
+            break;
+          /* 8-color standard palette */
           case 30 ... 37:
             node->fg.type = palette_8;
             node->fg.value = args[j] - 30;
@@ -238,6 +232,7 @@ vt100_parse(struct vt100_node_t *node, char *str)
             node->bg.type = palette_8;
             node->bg.value = args[j] - 40;
             break;
+          /* 8-color bright palette */
           case 90 ... 97:
             node->fg.type = palette_8_bright;
             node->fg.value = args[j] - 90;
@@ -246,61 +241,37 @@ vt100_parse(struct vt100_node_t *node, char *str)
             node->bg.type = palette_8_bright;
             node->bg.value = args[j] - 100;
             break;
-          case 1:
-            node->mode |= HAS_BOLD;
-            break;
-          case 4:
-            node->mode |= HAS_UNDERLINE;
-            break;
-          case 5:
-            node->mode |= HAS_BLINK;
-            break;
           default:
             state = args[j];
             break;
           }
           break;
         case 38:
-          if (args[j] == 5) {
-            if (j + 1 >= i || args[j + 1] < 0 || args[j + 1] > 255)
-              goto abort;
-
-            node->fg.type = palette_256;
-            node->fg.value = args[++j];
-          } else if (args[j] == 2) {
-            if (j + 3 >= i)
-              goto abort;
-
-            node->fg.type = truecolor;
-
-            node->fg.value = args[++j];
-            node->fg.value <<= 8;
-            node->fg.value |= args[++j];
-            node->fg.value <<= 8;
-            node->fg.value |= args[++j];
-          } else {
-            goto abort;
-          }
-          state = 0;
-          break;
         case 48:
+          if (state == 38)
+            to_modify = &(node->fg);
+          else
+            to_modify = &(node->bg);
+
           if (args[j] == 5) {
+            /* 256-color palette */
             if (j + 1 >= i || args[j + 1] < 0 || args[j + 1] > 255)
               goto abort;
 
-            node->bg.type = palette_256;
-            node->bg.value = args[++j];
+            to_modify->type = palette_256;
+            to_modify->value = args[++j];
           } else if (args[j] == 2) {
+            /* Truecolor */
             if (j + 3 >= i)
               goto abort;
 
-            node->bg.type = truecolor;
+            to_modify->type = truecolor;
 
-            node->bg.value = args[++j];
-            node->bg.value <<= 8;
-            node->bg.value |= args[++j];
-            node->bg.value <<= 8;
-            node->bg.value |= args[++j];
+            to_modify->value = args[++j];
+            to_modify->value <<= 8;
+            to_modify->value |= args[++j];
+            to_modify->value <<= 8;
+            to_modify->value |= args[++j];
           } else {
             goto abort;
           }

@@ -17,43 +17,53 @@ draw(void)
   struct vt100_node_t *tmp;
   int x = 0;
   int off = 0;
-  int did_newline = 0;
   char *sgr;
 
-  printf("\x1b[0;0H\x1b[2J\x1b[36m(Press \"q\" to exit)\n\x1b[32mColumn width: %i\x1b[0m\n", w);
+  printf("\x1b[0;0H\x1b[2J\x1b[36m(Press \"q\" to exit)\n\x1b[32mColumn width: %i\x1b[0m\n\n", w);
 
-  tmp = head;
+  tmp = head->next;
+
+  printf("        \x1b[35m┌");
+  for (x = 1; x < w + 2; x++) {
+    printf("─");
+  }
+  printf("┐\n        ");
 
   while (tmp != NULL) {
     x = 0;
-    did_newline = 0;
 
-    printf("    ");
-
+    printf("│\x1b[0m ");
     while (x < w) {
       sgr = vt100_sgr(tmp);
-      if (tmp->len - off > w - x) {
-        printf("%s%.*s\n    ", sgr, w - x, tmp->str + off);
-        off += w - x;
-        x = 0;
-        did_newline = 1;
+      printf("%s%.*s", sgr, MIN(w - x - 1, tmp->len - off - 1), tmp->str + off);
+      if (tmp->len - off - 1 > w - x - 1) {
+        off += w - x - 1;
+        x = w;
       } else {
-        printf("%s%.*s", sgr, tmp->len - off, tmp->str + off);
-        x += tmp->len - off;
+        x += tmp->len - off - 1;
         off = 0;
-        did_newline = 0;
         tmp = tmp->next;
 
         if (tmp == NULL) {
+          x++;
           free(sgr);
           break;
         }
       }
       free(sgr);
     }
-    if (!did_newline)
-      printf("\n    ");
+
+    for (; x < w; x++) {
+      printf(" ");
+    }
+    printf(" \x1b[35m│\n        ");
   }
+
+  printf("\x1b[35m└");
+  for (x = 1; x < w + 2; x++) {
+    printf("─");
+  }
+  printf("┘");
 
   printf("\n\n\x1b[0m");
 }
@@ -61,7 +71,7 @@ draw(void)
 void
 shrink()
 {
-  if (w > 1)
+  if (w > 4)
     w--;
   draw();
 }
