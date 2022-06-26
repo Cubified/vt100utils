@@ -10,8 +10,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "config.h"
-
 /**
  * PREPROCESSOR
  */
@@ -59,87 +57,101 @@ static char *empty_str = "";
  *   data
  */
 char *
-vt100_sgr(struct vt100_node_t *node)
+vt100_sgr(struct vt100_node_t *node, struct vt100_node_t *prev)
 {
   char *buf = malloc(128);
   int len = sprintf(buf, "\x1b[");
   int i;
 
-  switch (node->fg.type) {
-    case palette_8:
-      len += sprintf(
-        buf + len,
-        "%i;",
-        node->fg.value + 30
-      );
-      break;
-    case palette_8_bright:
-      len += sprintf(
-        buf + len,
-        "%i;",
-        node->fg.value + 90
-      );
-      break;
-    case palette_256:
-      len += sprintf(
-        buf + len,
-        "38;5;%i;",
-        node->fg.value
-      );
-      break;
-    case truecolor:
-      len += sprintf(
-        buf + len,
-        "38;2;%i;%i;%i;",
-        (node->fg.value >> 16) & 0xff,
-        (node->fg.value >> 8)  & 0xff,
-        (node->fg.value >> 0)  & 0xff
-      );
-      break;
+  if (!prev ||
+      prev->fg.type  != node->fg.type ||
+      prev->fg.value != node->fg.value
+  ) {
+    switch (node->fg.type) {
+      case palette_8:
+        len += sprintf(
+          buf + len,
+          "%i;",
+          node->fg.value + 30
+        );
+        break;
+      case palette_8_bright:
+        len += sprintf(
+          buf + len,
+          "%i;",
+          node->fg.value + 90
+        );
+        break;
+      case palette_256:
+        len += sprintf(
+          buf + len,
+          "38;5;%i;",
+          node->fg.value
+        );
+        break;
+      case truecolor:
+        len += sprintf(
+          buf + len,
+          "38;2;%i;%i;%i;",
+          (node->fg.value >> 16) & 0xff,
+          (node->fg.value >> 8)  & 0xff,
+          (node->fg.value >> 0)  & 0xff
+        );
+        break;
+    }
   }
 
-  switch (node->bg.type) {
-    case palette_8:
-      len += sprintf(
-        buf + len,
-        "%i",
-        node->bg.value + 40
-      );
-      break;
-    case palette_8_bright:
-      len += sprintf(
-        buf + len,
-        "%i",
-        node->bg.value + 100
-      );
-      break;
-    case palette_256:
-      len += sprintf(
-        buf + len,
-        "48;5;%i",
-        node->bg.value
-      );
-      break;
-    case truecolor:
-      len += sprintf(
-        buf + len,
-        "48;2;%i;%i;%i",
-        (node->bg.value >> 16) & 0xff,
-        (node->bg.value >> 8)  & 0xff,
-        (node->bg.value >> 0)  & 0xff
-      );
-      break;
+  if (!prev ||
+      prev->bg.type  != node->bg.type ||
+      prev->bg.value != node->bg.value
+  ) {
+    switch (node->bg.type) {
+      case palette_8:
+        len += sprintf(
+          buf + len,
+          "%i",
+          node->bg.value + 40
+        );
+        break;
+      case palette_8_bright:
+        len += sprintf(
+          buf + len,
+          "%i",
+          node->bg.value + 100
+        );
+        break;
+      case palette_256:
+        len += sprintf(
+          buf + len,
+          "48;5;%i",
+          node->bg.value
+        );
+        break;
+      case truecolor:
+        len += sprintf(
+          buf + len,
+          "48;2;%i;%i;%i",
+          (node->bg.value >> 16) & 0xff,
+          (node->bg.value >> 8)  & 0xff,
+          (node->bg.value >> 0)  & 0xff
+        );
+        break;
+    }
   }
 
-  for (i = 0; i < 8; i++) {
-    len += sprintf(
-      buf + len,
-      ";%i",
-      i + 1
-        + (20 * ((node->mode & (1 << i)) == 0))   /* Disable format */
-        + (1 * (i == 0 && (node->mode & 1) == 0)) /* \x1b[21m is nonstandard */
-    );
+#ifndef VT100UTILS_SKIP_FORMATTING
+  if (!prev || prev->mode != node->mode) {
+    for (i = 0; i < 8; i++) {
+      len += sprintf(
+        buf + len,
+        ";%i",
+        i + 1
+          + (20 * ((node->mode & (1 << i)) == 0))   /* Disable format */
+          + (1 * (i == 0 && (node->mode & 1) == 0)) /* \x1b[21m is nonstandard */
+      );
+    }
   }
+#endif
 
   sprintf(buf + len, "m");
 
@@ -159,14 +171,15 @@ vt100_encode(struct vt100_node_t *node)
   char *out = malloc((size = MAX(node->len, 32)));
   char *buf;
 
-  struct vt100_node_t *tmp = node;
+  struct vt100_node_t *tmp = node,
+                      *prev = NULL;
 
   while (tmp != NULL) {
-    while (len + tmp->len + 30 > size) {
+    while (len + tmp->len + 64 > size) {
       out = realloc(out, (size *= 2));
     }
 
-    buf = vt100_sgr(tmp);
+    buf = vt100_sgr(tmp, prev);
 
     len += sprintf(
       out + len,
@@ -177,6 +190,7 @@ vt100_encode(struct vt100_node_t *node)
 
     free(buf);
 
+    prev = tmp;
     tmp = tmp->next;
   }
 

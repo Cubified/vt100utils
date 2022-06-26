@@ -14,7 +14,7 @@ void
 draw(ui_box_t *b, char *out)
 {
   struct vt100_node_t *node = b->data1;
-  char *sgr = vt100_sgr(node);
+  char *sgr = vt100_sgr(node, NULL);
 
   sprintf(out, "%s%s", sgr, node->str);
   free(sgr);

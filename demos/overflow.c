@@ -34,7 +34,7 @@ draw(void)
 
     printf("│\x1b[0m ");
     while (x < w) {
-      sgr = vt100_sgr(tmp);
+      sgr = vt100_sgr(tmp, NULL);
       printf("%s%.*s", sgr, MIN(w - x - 1, tmp->len - off - 1), tmp->str + off);
       if (tmp->len - off - 1 > w - x - 1) {
         off += w - x - 1;

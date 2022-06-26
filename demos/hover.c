@@ -20,7 +20,7 @@ draw(ui_box_t *b, char *out)
   int full_len = 0;
 
   while (tmp != NULL) {
-    sgr = vt100_sgr(tmp);
+    sgr = vt100_sgr(tmp, NULL);
     full_len += sprintf(
       out + full_len,
       "%s%.*s",
@@ -74,7 +74,7 @@ stop()
 int
 main(void)
 {
-  head = vt100_decode("\x1b[36mClick to see \x1b[4;38;5;120mt\x1b[38;5;125mh\x1b[38;5;130mi\x1b[38;5;135ms \x1b[38;5;140mt\x1b[38;5;145me\x1b[38;5;150mx\x1b[38;5;155mt\x1b[0;36m un-truncate!");
+  head = vt100_decode("\x1b[36mClick to see \x1b[4;38;5;125mt\x1b[38;5;127mh\x1b[38;5;130mi\x1b[38;5;135ms \x1b[38;5;140mt\x1b[38;5;145me\x1b[38;5;150mx\x1b[38;5;155mt\x1b[0;36m un-truncate!");
 
   ui_new(0, &u);
 
